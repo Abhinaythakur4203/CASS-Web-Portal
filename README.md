@@ -1,7 +1,7 @@
 <h1>Computer Application Student Society (CASS)</h1>
 
-<p>This is a backend code for Student society web-portal developed for Computer Application Department of
-"Sikkim Manipal Institute of Technology" college  using "JS" framework</p>
+<p>This is a backend project for Student Society web-portal developed for <b>Computer Application Department</b> of
+<b>"Sikkim Manipal Institute of Technology"</b> college  using "JS" and ist libraries/framework</p>
 
 <details>
   <summary>Languages/Library Used: </summary>
