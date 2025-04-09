@@ -4,6 +4,8 @@ import { ApiError } from '../utils/apiError.js';
 import { Gallery } from '../models/gallery.model.js';
 import { uploadOnCloudinary, deleteFromCloudinary } from '../utils/cloudinary.js';
 import { checkUserRole } from '../middleware/auth.middleware.js';
+import validator from 'validator';
+import { logSuspiciousActivity } from '../utils/logger.js';
 
 // ✅ Create a New Gallery Bucket (With Multiple Images)
 const createGallery = asyncHandler(async (req, res) => {
@@ -19,7 +21,14 @@ const createGallery = asyncHandler(async (req, res) => {
 
     const { title, description } = req.body;
     if (!title || !req.files || req.files.length === 0) {
+        logSuspiciousActivity(req, 'Missing title or images for gallery creation');
         throw new ApiError(400, "Title and at least one image are required!");
+    }
+
+    if (!validator.isLength(title, { min: 1, max: 100 }) ||
+        (description && !validator.isLength(description, { min: 1, max: 500 }))) {
+        logSuspiciousActivity(req, 'Invalid input data for gallery creation');
+        throw new ApiError(400, "Invalid input data!");
     }
 
     let images = [];
@@ -54,9 +63,13 @@ const addImagesToGallery = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const gallery = await Gallery.findById(id);
 
-    if (!gallery) throw new ApiError(404, "Gallery not found!");
+    if (!gallery) {
+        logSuspiciousActivity(req, 'Gallery not found');
+        throw new ApiError(404, "Gallery not found!");
+    }
 
     if (!req.files || req.files.length === 0) {
+        logSuspiciousActivity(req, 'No images provided for adding to gallery');
         throw new ApiError(400, "At least one image is required!");
     }
 
@@ -111,11 +124,17 @@ const deleteImageFromGallery = asyncHandler(async (req, res) => {
     const { id, imageId } = req.params;
     const gallery = await Gallery.findById(id);
     
-    if (!gallery) throw new ApiError(404, "Gallery not found!");
+    if (!gallery) {
+        logSuspiciousActivity(req, 'Gallery not found');
+        throw new ApiError(404, "Gallery not found!");
+    }
 
     const imageToDelete = gallery.images.find(img => img._id.toString() === imageId);
 
-    if (!imageToDelete) throw new ApiError(404, "Image not found in gallery!");
+    if (!imageToDelete) {
+        logSuspiciousActivity(req, 'Image not found in gallery');
+        throw new ApiError(404, "Image not found in gallery!");
+    }
 
     try {
         await deleteFromCloudinary(imageToDelete.imageUrl);
@@ -139,7 +158,10 @@ const deleteGallery = asyncHandler(async (req, res) => {
 
     const { id } = req.params;
     const gallery = await Gallery.findById(id);
-    if (!gallery) throw new ApiError(404, "Gallery not found!");
+    if (!gallery) {
+        logSuspiciousActivity(req, 'Gallery not found');
+        throw new ApiError(404, "Gallery not found!");
+    }
 
     try {
         for (const image of gallery.images) {

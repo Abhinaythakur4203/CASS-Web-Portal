@@ -5,6 +5,8 @@ import { ApiError } from "../utils/apiError.js";
 import { uploadOnCloudinary, deleteFromCloudinary } from "../utils/cloudinary.js";
 import mongoose from "mongoose";
 import { checkUserRole } from "../middleware/auth.middleware.js";
+import validator from 'validator';
+import { logSuspiciousActivity } from '../utils/logger.js';
 
 const createNewsletter = asyncHandler(async (req, res) => {
     checkUserRole(req);
@@ -13,11 +15,22 @@ const createNewsletter = asyncHandler(async (req, res) => {
     const localMediaPath = req.file?.path;
 
     if (!title || !description || !date || !localMediaPath) {
+        logSuspiciousActivity(req, 'Missing required fields for newsletter creation');
         throw new ApiError(400, "All fields and media file are required!");
     }
 
+    if (!validator.isLength(title, { min: 1, max: 100 }) ||
+        !validator.isLength(description, { min: 1, max: 500 }) ||
+        !validator.isISO8601(date)) {
+        logSuspiciousActivity(req, 'Invalid input data for newsletter creation');
+        throw new ApiError(400, "Invalid input data!");
+    }
+
     const media = await uploadOnCloudinary(localMediaPath);
-    if (!media.url) throw new ApiError(400, "Error while uploading media file!");
+    if (!media.url) {
+        logSuspiciousActivity(req, 'Error while uploading media file');
+        throw new ApiError(400, "Error while uploading media file!");
+    }
 
     const newNewsletter = await Newsletter.create({
         title,
@@ -49,11 +62,15 @@ const updateNewsletter = asyncHandler(async (req, res) => {
     const cleanedId = id.trim();
 
     if (!mongoose.Types.ObjectId.isValid(cleanedId)) {
+        logSuspiciousActivity(req, 'Invalid newsletter ID format');
         throw new ApiError(400, "Invalid newsletter ID format!");
     }
 
     const newsletter = await Newsletter.findById(cleanedId);
-    if (!newsletter) throw new ApiError(404, "Newsletter not found!");
+    if (!newsletter) {
+        logSuspiciousActivity(req, 'Newsletter not found');
+        throw new ApiError(404, "Newsletter not found!");
+    }
 
     const { title, description, date } = req.body;
     let media = newsletter.media;
@@ -86,11 +103,15 @@ const deleteNewsletter = asyncHandler(async (req, res) => {
     const cleanedId = id.trim();
 
     if (!mongoose.Types.ObjectId.isValid(cleanedId)) {
+        logSuspiciousActivity(req, 'Invalid newsletter ID format');
         throw new ApiError(400, "Invalid newsletter ID format!");
     }
 
     const newsletter = await Newsletter.findById(cleanedId);
-    if (!newsletter) throw new ApiError(404, "Newsletter not found!");
+    if (!newsletter) {
+        logSuspiciousActivity(req, 'Newsletter not found');
+        throw new ApiError(404, "Newsletter not found!");
+    }
 
     if (newsletter.media) {
         try {

@@ -6,7 +6,8 @@ import { uploadOnCloudinary, deleteFromCloudinary } from "../utils/cloudinary.js
 import { v2 as cloudinary } from "cloudinary";
 import mongoose from "mongoose";
 import { checkUserRole } from "../middleware/auth.middleware.js";
-
+import validator from 'validator';
+import { logSuspiciousActivity } from '../utils/logger.js';
 
 const createEvent = asyncHandler(async (req, res) => {
   checkUserRole(req);
@@ -24,11 +25,26 @@ const createEvent = asyncHandler(async (req, res) => {
     !location ||
     !localMediaPath
   ) {
+    logSuspiciousActivity(req, 'Missing required fields for event creation');
     throw new ApiError(400, "All fields and media file are required!");
   }
 
+  if (!validator.isLength(title, { min: 1, max: 100 }) ||
+      !validator.isLength(description, { min: 1, max: 500 }) ||
+      !validator.isIn(category, ["Event", "Blog"]) ||
+      !validator.isISO8601(date) ||
+      !validator.isLength(time, { min: 1, max: 20 }) ||
+      !validator.isLength(content, { min: 1, max: 1000 }) ||
+      !validator.isLength(location, { min: 1, max: 100 })) {
+    logSuspiciousActivity(req, 'Invalid input data for event creation');
+    throw new ApiError(400, "Invalid input data!");
+  }
+
   const media = await uploadOnCloudinary(localMediaPath);
-  if (!media.url) throw new ApiError(400, "Error while uploading media file!");
+  if (!media.url) {
+    logSuspiciousActivity(req, 'Error while uploading media file');
+    throw new ApiError(400, "Error while uploading media file!");
+  }
 
   const newEvent = await Event.create({
     title,
@@ -78,11 +94,15 @@ const updateEvent = asyncHandler(async (req, res) => {
   const cleanedId = id.trim();
 
   if (!mongoose.Types.ObjectId.isValid(cleanedId)) {
+    logSuspiciousActivity(req, 'Invalid event ID format');
     throw new ApiError(400, "Invalid event ID format!");
   }
 
   const event = await Event.findById(cleanedId);
-  if (!event) throw new ApiError(404, "Event not found!");
+  if (!event) {
+    logSuspiciousActivity(req, 'Event not found');
+    throw new ApiError(404, "Event not found!");
+  }
 
   const { title, description, date, time, content, category, location } = req.body;
   let media = event.media;
@@ -116,7 +136,10 @@ const deleteEvent = asyncHandler(async (req, res) => {
 
   const { id } = req.params;
   const event = await Event.findById(id);
-  if (!event) throw new ApiError(404, "Event not found!");
+  if (!event) {
+    logSuspiciousActivity(req, 'Event not found');
+    throw new ApiError(404, "Event not found!");
+  }
 
   if (event.media) {
     try {
