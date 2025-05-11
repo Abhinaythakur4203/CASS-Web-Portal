@@ -3,17 +3,24 @@ import { ApiResponse } from "../utils/apiResponse.js";
 import { ApiError } from "../utils/apiError.js";
 import { Event } from "../models/event.model.js";
 import { uploadOnCloudinary, deleteFromCloudinary } from "../utils/cloudinary.js";
-import { v2 as cloudinary } from "cloudinary";
 import mongoose from "mongoose";
 import { checkUserRole } from "../middleware/auth.middleware.js";
-
 
 const createEvent = asyncHandler(async (req, res) => {
   checkUserRole(req);
 
-  const { title, description, category, date, time, content, location } = req.body;
-  const localMediaPath = req.file?.path;
-
+  const { title, description, date, time, content, location, mediaUrl } = req.body;
+  
+  // Normalize category to match enum values (Event or Blog)
+  let { category } = req.body;
+  if (category) {
+    category = category.charAt(0).toUpperCase() + category.slice(1).toLowerCase();
+    
+    if (category !== "Event" && category !== "Blog") {
+      throw new ApiError(400, "Category must be either 'Event' or 'Blog'!");
+    }
+  }
+  
   if (
     !title ||
     !description ||
@@ -21,14 +28,23 @@ const createEvent = asyncHandler(async (req, res) => {
     !date ||
     !time ||
     !content ||
-    !location ||
-    !localMediaPath
+    !location
   ) {
-    throw new ApiError(400, "All fields and media file are required!");
+    throw new ApiError(400, "All fields are required!");
   }
 
-  const media = await uploadOnCloudinary(localMediaPath);
-  if (!media.url) throw new ApiError(400, "Error while uploading media file!");
+  // Handle media from direct URL or file upload
+  let mediaPath;
+  
+  if (mediaUrl) {
+    mediaPath = mediaUrl;
+  } else if (req.file?.path) {
+    const media = await uploadOnCloudinary(req.file.path);
+    if (!media.url) throw new ApiError(400, "Error while uploading media file!");
+    mediaPath = media.url;
+  } else {
+    throw new ApiError(400, "Media file or URL is required!");
+  }
 
   const newEvent = await Event.create({
     title,
@@ -37,7 +53,7 @@ const createEvent = asyncHandler(async (req, res) => {
     date,
     time,
     content,
-    media: media.url,
+    media: mediaPath,
     location,
   });
   res
@@ -60,9 +76,9 @@ const getEventById = asyncHandler(async (req, res) => {
 
   const event = await Event.findOne({
     $or: [
-      { _id: mongoose.Types.ObjectId.isValid(identifier) ? identifier : null },
+      { _id: mongoose.isValidObjectId(identifier) ? new mongoose.Types.ObjectId(identifier) : null },
       { title: { $regex: new RegExp(identifier, "i") } },
-      { slug: identifier }, // Added slug as a search option
+      { slug: identifier },
     ],
   });
 
@@ -99,7 +115,6 @@ const updateEvent = asyncHandler(async (req, res) => {
     media = uploadedMedia.url;
   }
 
-  // Update only the provided fields
   event.title = title || event.title;
   event.description = description || event.description;
   event.date = date || event.date;

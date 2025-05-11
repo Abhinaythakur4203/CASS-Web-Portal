@@ -7,25 +7,33 @@ export const verifyJWT = asyncHandler(async(req, _, next) => {
     try {
         const token = req.cookies?.accessToken || req.header("Authorization")?.replace("Bearer ", "")
         
-        // console.log(token);
         if (!token) {
-            throw new ApiError(401, "Unauthorized request")
+            throw new ApiError(401, "Authentication required. No access token provided");
         }
     
-        const decodedToken = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
-    
-        const user = await Admin.findById(decodedToken?._id).select("-password -refreshToken")
-    
-        if (!user) {
-            
-            throw new ApiError(401, "Invalid Access Token!")
+        try {
+            const decodedToken = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
+        
+            const user = await Admin.findById(decodedToken?._id).select("-password -refreshToken")
+        
+            if (!user) {
+                throw new ApiError(401, "Invalid access token: User not found");
+            }
+            req.user = user;
+            next()
+        } catch (tokenError) {
+            // Handle specific JWT errors with clearer messages
+            if (tokenError.name === 'TokenExpiredError') {
+                throw new ApiError(401, "Access token has expired. Please refresh or login again");
+            } else if (tokenError.name === 'JsonWebTokenError') {
+                throw new ApiError(401, "Invalid access token format");
+            } else {
+                throw new ApiError(401, tokenError?.message || "Invalid access token");
+            }
         }
-        req.user = user;
-        next()
     } catch (error) {
-        throw new ApiError(401, error?.message || "Invalid access token")
+        throw new ApiError(401, error?.message || "Authentication failed");
     }
-    
 })
 
 export const checkUserRole = (req) => {
