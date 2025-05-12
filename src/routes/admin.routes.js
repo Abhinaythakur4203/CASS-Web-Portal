@@ -22,5 +22,6 @@ router.route("/change-password").post(verifyJWT, changeCurrentPassword);
 router.route("/validate-token").get(verifyJWT, validateToken);
 router.route("/update-profile").patch(verifyJWT,updateUserProfile);
 router.route("/update-avatar").patch(verifyJWT,upload.single("avatar"),updateUserProfile);
+router.route("/students-list").get(verifyJWT, getAllStudents);
 
 export default router;

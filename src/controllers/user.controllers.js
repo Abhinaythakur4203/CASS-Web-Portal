@@ -3,7 +3,8 @@ import { ApiResponse } from '../utils/apiResponse.js';
 import { ApiError } from '../utils/apiError.js';
 import { Admin } from "../models/admin.model.js";
 import jwt from "jsonwebtoken";
-import { uploadOnCloudinary,deleteFromCloudinary } from '../utils/cloudinary.js';
+import { uploadOnCloudinary, deleteFromCloudinary } from '../utils/cloudinary.js';
+import { checkAdmin, checkUserRole } from '../middleware/auth.middleware.js';
 
 
 
@@ -275,7 +276,7 @@ const validateToken = asyncHandler(async (req, res) => {
 });
 
 const updateUserProfile = asyncHandler(async (req, res) => {
-    const { firstName, lastName,username,email, phone } = req.body;
+    const { firstName, lastName, username, email, phone } = req.body;
 
     if ([firstName, lastName, username, email, phone].some((field) => field?.trim() === "")) {
         throw new ApiError(400, "All fields are required!");
@@ -368,6 +369,24 @@ const updateUserAvatar = asyncHandler(async (req, res) => {
     }
 });
 
+const getUserProfile = asyncHandler(async (req, res) => {
+
+    checkAdmin(req);
+
+    const user = await Admin.findOne({ role: 'user' }).select("-password -refreshToken -role");
+
+    if (!user) {
+        throw new ApiError(404, "User not found!");
+    }
+
+    return res
+        .status(200)
+        .json(
+            new ApiResponse(200, user, "User profile fetched successfully")
+        );
+
+});
+
 export {
     registerAdmin,
     loginAdmin,
@@ -376,5 +395,6 @@ export {
     changeCurrentPassword,
     validateToken,
     updateUserProfile,
-    updateUserAvatar
+    updateUserAvatar,
+    getUserProfile
 }
