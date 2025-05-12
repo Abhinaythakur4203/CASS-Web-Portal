@@ -369,7 +369,7 @@ const updateUserAvatar = asyncHandler(async (req, res) => {
     }
 });
 
-const getUserProfile = asyncHandler(async (req, res) => {
+const getAllStudents = asyncHandler(async (req, res) => {
 
     checkAdmin(req);
 
@@ -396,5 +396,5 @@ export {
     validateToken,
     updateUserProfile,
     updateUserAvatar,
-    getUserProfile
+    getAllStudents
 }
